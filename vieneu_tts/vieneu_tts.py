@@ -7,6 +7,8 @@ from neucodec import NeuCodec, DistillNeuCodec
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from utils.phonemize_text import phonemize_text, phonemize_with_dict
 import re
+from typing import Literal
+
 
 def _linear_overlap_add(frames: list[np.ndarray], stride: int) -> np.ndarray:
     # original impl --> https://github.com/facebookresearch/encodec/blob/main/encodec/utils.py
@@ -34,13 +36,22 @@ def _linear_overlap_add(frames: list[np.ndarray], stride: int) -> np.ndarray:
     assert sum_weight.min() > 0
     return out / sum_weight
 
+
+VieNeuCodecRepo = Literal[
+    "neuphonic/neucodec",
+    "neuphonic/distill-neucodec",
+    "neuphonic/neucodec-onnx-decoder",
+]
+CpuOrCuda = Literal["cpu", "cuda"]
+
+
 class VieNeuTTS:
     def __init__(
         self,
-        backbone_repo="pnnbao-ump/VieNeu-TTS",
-        backbone_device="cpu",
-        codec_repo="neuphonic/neucodec",
-        codec_device="cpu",
+        backbone_repo: str = "pnnbao-ump/VieNeu-TTS",
+        backbone_device: CpuOrCuda = "cpu",
+        codec_repo: VieNeuCodecRepo = "neuphonic/neucodec",
+        codec_device: CpuOrCuda = "cpu",
     ):
 
         # Constants
@@ -51,7 +62,9 @@ class VieNeuTTS:
         self.streaming_frames_per_chunk = 25
         self.streaming_lookforward = 5
         self.streaming_lookback = 50
-        self.streaming_stride_samples = self.streaming_frames_per_chunk * self.hop_length
+        self.streaming_stride_samples = (
+            self.streaming_frames_per_chunk * self.hop_length
+        )
 
         # ggml & onnx flags
         self._is_quantized_model = False
@@ -63,8 +76,8 @@ class VieNeuTTS:
         # Load models
         self._load_backbone(backbone_repo, backbone_device)
         self._load_codec(codec_repo, codec_device)
-    
-    def _load_backbone(self, backbone_repo, backbone_device):
+
+    def _load_backbone(self, backbone_repo: str, backbone_device: CpuOrCuda):
         print(f"Loading backbone from: {backbone_repo} on {backbone_device} ...")
 
         if backbone_repo.lower().endswith("gguf") or "gguf" in backbone_repo.lower():
@@ -86,14 +99,14 @@ class VieNeuTTS:
                 flash_attn=True if backbone_device == "gpu" else False,
             )
             self._is_quantized_model = True
-            
+
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(backbone_repo)
             self.backbone = AutoModelForCausalLM.from_pretrained(backbone_repo).to(
                 torch.device(backbone_device)
             )
-    
-    def _load_codec(self, codec_repo, codec_device):
+
+    def _load_codec(self, codec_repo: VieNeuCodecRepo, codec_device: CpuOrCuda):
         print(f"Loading codec from: {codec_repo} on {codec_device} ...")
         match codec_repo:
             case "neuphonic/neucodec":
@@ -117,7 +130,9 @@ class VieNeuTTS:
             case _:
                 raise ValueError(f"Unsupported codec repository: {codec_repo}")
 
-    def infer(self, text: str, ref_codes: np.ndarray | torch.Tensor, ref_text: str) -> np.ndarray:
+    def infer(
+        self, text: str, ref_codes: np.ndarray | torch.Tensor, ref_text: str
+    ) -> np.ndarray:
         """
         Perform inference to generate speech from text using the TTS model and reference audio.
 
@@ -141,7 +156,9 @@ class VieNeuTTS:
 
         return wav
 
-    def infer_stream(self, text: str, ref_codes: np.ndarray | torch.Tensor, ref_text: str) -> Generator[np.ndarray, None, None]:
+    def infer_stream(
+        self, text: str, ref_codes: np.ndarray | torch.Tensor, ref_text: str
+    ) -> Generator[np.ndarray, None, None]:
         """
         Perform streaming inference to generate speech from text using the TTS model and reference audio.
 
@@ -156,26 +173,32 @@ class VieNeuTTS:
         if self._is_quantized_model:
             return self._infer_stream_ggml(ref_codes, ref_text, text)
         else:
-            raise NotImplementedError("Streaming is not implemented for the torch backend!")
+            raise NotImplementedError(
+                "Streaming is not implemented for the torch backend!"
+            )
 
     def encode_reference(self, ref_audio_path: str | Path):
         wav, _ = librosa.load(ref_audio_path, sr=16000, mono=True)
-        wav_tensor = torch.from_numpy(wav).float().unsqueeze(0).unsqueeze(0)  # [1, 1, T]
+        wav_tensor = (
+            torch.from_numpy(wav).float().unsqueeze(0).unsqueeze(0)
+        )  # [1, 1, T]
         with torch.no_grad():
-            ref_codes = self.codec.encode_code(audio_or_path=wav_tensor).squeeze(0).squeeze(0)
+            ref_codes = (
+                self.codec.encode_code(audio_or_path=wav_tensor).squeeze(0).squeeze(0)
+            )
         return ref_codes
 
     def _decode(self, codes: str):
         """Decode speech tokens to audio waveform."""
         # Extract speech token IDs using regex
         speech_ids = [int(num) for num in re.findall(r"<\|speech_(\d+)\|>", codes)]
-        
+
         if len(speech_ids) == 0:
             raise ValueError(
                 "No valid speech tokens found in the output. "
                 "The model may not have generated proper speech tokens."
             )
-        
+
         # Onnx decode
         if self._is_onnx_codec:
             codes = np.array(speech_ids, dtype=np.int32)[np.newaxis, np.newaxis, :]
@@ -187,16 +210,27 @@ class VieNeuTTS:
                     self.codec.device
                 )
                 recon = self.codec.decode_code(codes).cpu().numpy()
-        
+
         return recon[0, 0, :]
-    
-    def _apply_chat_template(self, ref_codes: list[int], ref_text: str, input_text: str) -> list[int]:
-        input_text = phonemize_with_dict(ref_text) + " " + phonemize_with_dict(input_text)
+
+    def _apply_chat_template(
+        self, ref_codes: list[int], ref_text: str, input_text: str
+    ) -> list[int]:
+        if self.advanced_model:
+            input_text = (
+                phonemize_with_dict(ref_text) + " " + phonemize_with_dict(input_text)
+            )
+        else:
+            input_text = phonemize_text(ref_text) + " " + phonemize_text(input_text)
 
         speech_replace = self.tokenizer.convert_tokens_to_ids("<|SPEECH_REPLACE|>")
-        speech_gen_start = self.tokenizer.convert_tokens_to_ids("<|SPEECH_GENERATION_START|>")
+        speech_gen_start = self.tokenizer.convert_tokens_to_ids(
+            "<|SPEECH_GENERATION_START|>"
+        )
         text_replace = self.tokenizer.convert_tokens_to_ids("<|TEXT_REPLACE|>")
-        text_prompt_start = self.tokenizer.convert_tokens_to_ids("<|TEXT_PROMPT_START|>")
+        text_prompt_start = self.tokenizer.convert_tokens_to_ids(
+            "<|TEXT_PROMPT_START|>"
+        )
         text_prompt_end = self.tokenizer.convert_tokens_to_ids("<|TEXT_PROMPT_END|>")
 
         input_ids = self.tokenizer.encode(input_text, add_special_tokens=False)
@@ -221,7 +255,9 @@ class VieNeuTTS:
 
     def _infer_torch(self, prompt_ids: list[int]) -> str:
         prompt_tensor = torch.tensor(prompt_ids).unsqueeze(0).to(self.backbone.device)
-        speech_end_id = self.tokenizer.convert_tokens_to_ids("<|SPEECH_GENERATION_END|>")
+        speech_end_id = self.tokenizer.convert_tokens_to_ids(
+            "<|SPEECH_GENERATION_END|>"
+        )
         with torch.no_grad():
             output_tokens = self.backbone.generate(
                 prompt_tensor,
@@ -235,7 +271,8 @@ class VieNeuTTS:
             )
         input_length = prompt_tensor.shape[-1]
         output_str = self.tokenizer.decode(
-            output_tokens[0, input_length:].cpu().numpy().tolist(), add_special_tokens=False
+            output_tokens[0, input_length:].cpu().numpy().tolist(),
+            add_special_tokens=False,
         )
         return output_str
 
@@ -258,9 +295,15 @@ class VieNeuTTS:
         output_str = output["choices"][0]["text"]
         return output_str
 
-    def _infer_stream_ggml(self, ref_codes: torch.Tensor, ref_text: str, input_text: str) -> Generator[np.ndarray, None, None]:
-        ref_text = phonemize_with_dict(ref_text)
-        input_text = phonemize_with_dict(input_text)
+    def _infer_stream_ggml(
+        self, ref_codes: torch.Tensor, ref_text: str, input_text: str
+    ) -> Generator[np.ndarray, None, None]:
+        if self.advanced_model:
+            ref_text = phonemize_with_dict(ref_text)
+            input_text = phonemize_with_dict(input_text)
+        else:
+            ref_text = phonemize_text(ref_text)
+            input_text = phonemize_text(input_text)
 
         codes_str = "".join([f"<|speech_{idx}|>" for idx in ref_codes])
         prompt = (
@@ -279,19 +322,22 @@ class VieNeuTTS:
             temperature=0.2,
             top_k=50,
             stop=["<|SPEECH_GENERATION_END|>"],
-            stream=True
+            stream=True,
         ):
             output_str = item["choices"][0]["text"]
             token_cache.append(output_str)
 
-            if len(token_cache[n_decoded_tokens:]) >= self.streaming_frames_per_chunk + self.streaming_lookforward:
+            if (
+                len(token_cache[n_decoded_tokens:])
+                >= self.streaming_frames_per_chunk + self.streaming_lookforward
+            ):
 
                 # decode chunk
                 tokens_start = max(
                     n_decoded_tokens
                     - self.streaming_lookback
                     - self.streaming_overlap_frames,
-                    0
+                    0,
                 )
                 tokens_end = (
                     n_decoded_tokens
@@ -299,12 +345,14 @@ class VieNeuTTS:
                     + self.streaming_lookforward
                     + self.streaming_overlap_frames
                 )
-                sample_start = (
-                    n_decoded_tokens - tokens_start
-                ) * self.hop_length
+                sample_start = (n_decoded_tokens - tokens_start) * self.hop_length
                 sample_end = (
                     sample_start
-                    + (self.streaming_frames_per_chunk + 2 * self.streaming_overlap_frames) * self.hop_length
+                    + (
+                        self.streaming_frames_per_chunk
+                        + 2 * self.streaming_overlap_frames
+                    )
+                    * self.hop_length
                 )
                 curr_codes = token_cache[tokens_start:tokens_end]
                 recon = self._decode("".join(curr_codes))
@@ -316,9 +364,7 @@ class VieNeuTTS:
                     audio_cache, stride=self.streaming_stride_samples
                 )
                 new_samples_end = len(audio_cache) * self.streaming_stride_samples
-                processed_recon = processed_recon[
-                    n_decoded_samples:new_samples_end
-                ]
+                processed_recon = processed_recon[n_decoded_samples:new_samples_end]
                 n_decoded_samples = new_samples_end
                 n_decoded_tokens += self.streaming_frames_per_chunk
                 yield processed_recon
@@ -328,13 +374,17 @@ class VieNeuTTS:
         if len(token_cache) > n_decoded_tokens:
             tokens_start = max(
                 len(token_cache)
-                - (self.streaming_lookback + self.streaming_overlap_frames + remaining_tokens), 
-                0
+                - (
+                    self.streaming_lookback
+                    + self.streaming_overlap_frames
+                    + remaining_tokens
+                ),
+                0,
             )
             sample_start = (
-                len(token_cache) 
-                - tokens_start 
-                - remaining_tokens 
+                len(token_cache)
+                - tokens_start
+                - remaining_tokens
                 - self.streaming_overlap_frames
             ) * self.hop_length
             curr_codes = token_cache[tokens_start:]
@@ -342,6 +392,8 @@ class VieNeuTTS:
             recon = recon[sample_start:]
             audio_cache.append(recon)
 
-            processed_recon = _linear_overlap_add(audio_cache, stride=self.streaming_stride_samples)
+            processed_recon = _linear_overlap_add(
+                audio_cache, stride=self.streaming_stride_samples
+            )
             processed_recon = processed_recon[n_decoded_samples:]
             yield processed_recon
