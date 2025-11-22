@@ -5,3 +5,5 @@ torchaudio
 gradio
 neucodec>=0.0.4
 librosa>=0.11.0
+fastapi
+
