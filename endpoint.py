@@ -54,7 +54,7 @@ def reload_model():
 @app.get("/tts")
 def tts(text: str):
     global is_processing
-    if is_processing:
+    if is_processing or speak is None:
         print(f"Busy -> denying inference for '{text}'.")
         raise HTTPException(503)
 
