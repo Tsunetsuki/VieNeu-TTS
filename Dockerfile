@@ -1,11 +1,32 @@
-# syntax=docker/dockerfile:1
-FROM python:3.10-alpine
+FROM python:3.12
+
 WORKDIR /code
-# RUN apk add --no-cache gcc musl-dev linux-headers
-RUN apk add --no-cache espeak
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-EXPOSE 8000
+
+RUN apt-get update && apt-get install -y \
+    espeak \
+    && rm -rf /var/lib/apt/lists/*
+# RUN apk add --no-cache espeak
+
+# COPY requirements.txt requirements.txt
+# RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# RUN pip install --no-cache-dir -r requirements.txt
+
+# install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+COPY pyproject.toml uv.lock .
+ENV UV_HTTP_TIMEOUT=2400
+ENV UV_CONCURRENCY=1
+
+RUN uv sync
+RUN uv add "fastapi[standard]"
+ENV PATH="/code/.venv/bin:$PATH"
+
+
 COPY . .
+
+EXPOSE 8000
+
 CMD ["fastapi", "dev", "endpoint.py", "--host", "0.0.0.0"]
 
