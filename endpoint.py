@@ -37,7 +37,7 @@ def _load_model():
     is_processing = False
     torch.cuda.empty_cache()
     print("Cleared CUDA cache.")
-    speak = get_synth_speech("Nam 1 (id_0001)", "cuda")
+    speak = get_synth_speech("Vĩnh (nam miền Nam)", "cuda")
     print("Model loaded once!")
 
 

@@ -10,29 +10,45 @@ def get_synth_speech(
     voice_choice: str, device: Literal["cpu", "cuda"]
 ) -> Callable[[str], ArrayLike]:
     VOICE_SAMPLES = {
-        "Nam 1 (id_0001)": {
-            "audio": "./sample/id_0001.wav",
-            "text": "./sample/id_0001.txt",
+        "Bình (nam miền Bắc)": {
+            "audio": "./sample/Bình (nam miền Bắc).wav",
+            "text": "./sample/Bình (nam miền Bắc).txt",
         },
-        "Nữ 1 (id_0002)": {
-            "audio": "./sample/id_0002.wav",
-            "text": "./sample/id_0002.txt",
+        "Vĩnh (nam miền Nam)": {
+            "audio": "./sample/Vĩnh (nam miền Nam).wav",
+            "text": "./sample/Vĩnh (nam miền Nam).txt",
         },
-        "Nam 2 (id_0003)": {
-            "audio": "./sample/id_0003.wav",
-            "text": "./sample/id_0003.txt",
+        "Tuyên (nam miền Bắc)": {
+            "audio": "./sample/Tuyên (nam miền Bắc).wav",
+            "text": "./sample/Tuyên (nam miền Bắc).txt",
         },
-        "Nữ 2 (id_0004)": {
-            "audio": "./sample/id_0004.wav",
-            "text": "./sample/id_0004.txt",
+        "Nguyên (nam miền Nam)": {
+            "audio": "./sample/Nguyên (nam miền Nam).wav",
+            "text": "./sample/Nguyên (nam miền Nam).txt",
         },
-        "Nam 3 (id_0005)": {
-            "audio": "./sample/id_0005.wav",
-            "text": "./sample/id_0005.txt",
+        "Sơn (nam miền Nam)": {
+            "audio": "./sample/Sơn (nam miền Nam).wav",
+            "text": "./sample/Sơn (nam miền Nam).txt",
         },
-        "Nam 4 (id_0007)": {
-            "audio": "./sample/id_0007.wav",
-            "text": "./sample/id_0007.txt",
+        "Hương (nữ miền Bắc)": {
+            "audio": "./sample/Hương (nữ miền Bắc).wav",
+            "text": "./sample/Hương (nữ miền Bắc).txt",
+        },
+        "Ly (nữ miền Bắc)": {
+            "audio": "./sample/Ly (nữ miền Bắc).wav",
+            "text": "./sample/Ly (nữ miền Bắc).txt",
+        },
+        "Ngọc (nữ miền Bắc)": {
+            "audio": "./sample/Ngọc (nữ miền Bắc).wav",
+            "text": "./sample/Ngọc (nữ miền Bắc).txt",
+        },
+        "Đoan (nữ miền Nam)": {
+            "audio": "./sample/Đoan (nữ miền Nam).wav",
+            "text": "./sample/Đoan (nữ miền Nam).txt",
+        },
+        "Dung (nữ miền Nam)": {
+            "audio": "./sample/Dung (nữ miền Nam).wav",
+            "text": "./sample/Dung (nữ miền Nam).txt",
         },
     }
 
