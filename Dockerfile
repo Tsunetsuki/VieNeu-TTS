@@ -16,17 +16,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 COPY pyproject.toml uv.lock .
-ENV UV_HTTP_TIMEOUT=2400
+ENV UV_HTTP_TIMEOUT=24000
 ENV UV_CONCURRENCY=1
 
 RUN uv sync
-RUN uv add "fastapi[standard]"
-ENV PATH="/code/.venv/bin:$PATH"
+ENV HF_HOME="/root/.cache/huggingface"
 
 
 COPY . .
 
 EXPOSE 8000
 
-CMD ["fastapi", "dev", "endpoint.py", "--host", "0.0.0.0"]
+CMD ["uv", "run", "fastapi", "dev", "endpoint.py", "--host", "0.0.0.0"]
 

@@ -10,9 +10,6 @@ import re
 from typing import Literal
 import os
 
-# explicitly set model caching path to work with persistent volume in docker
-os.environ["HF_HOME"] = "/root/.cache/huggingface"
-
 
 def _linear_overlap_add(frames: list[np.ndarray], stride: int) -> np.ndarray:
     # original impl --> https://github.com/facebookresearch/encodec/blob/main/encodec/utils.py
