@@ -5,6 +5,13 @@ services:
       - "8000:8000"
     volumes:
       - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   hf_cache:
