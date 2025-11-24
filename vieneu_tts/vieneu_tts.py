@@ -217,12 +217,10 @@ class VieNeuTTS:
     def _apply_chat_template(
         self, ref_codes: list[int], ref_text: str, input_text: str
     ) -> list[int]:
-        if self.advanced_model:
-            input_text = (
-                phonemize_with_dict(ref_text) + " " + phonemize_with_dict(input_text)
-            )
-        else:
-            input_text = phonemize_text(ref_text) + " " + phonemize_text(input_text)
+
+        input_text = (
+            phonemize_with_dict(ref_text) + " " + phonemize_with_dict(input_text)
+        )
 
         speech_replace = self.tokenizer.convert_tokens_to_ids("<|SPEECH_REPLACE|>")
         speech_gen_start = self.tokenizer.convert_tokens_to_ids(
@@ -299,12 +297,8 @@ class VieNeuTTS:
     def _infer_stream_ggml(
         self, ref_codes: torch.Tensor, ref_text: str, input_text: str
     ) -> Generator[np.ndarray, None, None]:
-        if self.advanced_model:
-            ref_text = phonemize_with_dict(ref_text)
-            input_text = phonemize_with_dict(input_text)
-        else:
-            ref_text = phonemize_text(ref_text)
-            input_text = phonemize_text(input_text)
+        ref_text = phonemize_with_dict(ref_text)
+        input_text = phonemize_with_dict(input_text)
 
         codes_str = "".join([f"<|speech_{idx}|>" for idx in ref_codes])
         prompt = (

@@ -20,12 +20,17 @@ ENV UV_HTTP_TIMEOUT=24000
 ENV UV_CONCURRENCY=1
 
 RUN uv sync
-ENV HF_HOME="/root/.cache/huggingface"
+RUN mkdir -p /root/.cache/huggingface
+ENV HF_HOME=/root/.cache/huggingface
+ENV PYTHONUNBUFFERED=1
 
 
 COPY . .
 
+
 EXPOSE 8000
 
-CMD ["uv", "run", "fastapi", "dev", "endpoint.py", "--host", "0.0.0.0"]
+CMD ["uv", "run", "fastapi", "run", "endpoint.py", "--host", "0.0.0.0"]
+# CMD ["uv", "run", "uvicorn", "endpoint:app", "--host", "0.0.0.0", "--port", "8000"]
+
 

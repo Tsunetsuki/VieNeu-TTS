@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import sys
 import os
 
@@ -14,9 +15,6 @@ from clean_speak_function import get_synth_speech
 import torch
 
 
-app = FastAPI()
-
-
 def arr2stream(arr: ArrayLike) -> StreamingResponse:
     buffer = BytesIO()
     np.save(buffer, arr)
@@ -30,25 +28,40 @@ def arr2stream(arr: ArrayLike) -> StreamingResponse:
 is_processing: bool
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    global speak
+    global is_processing
+    _load_model()
+
+    yield
+    # Clean up the ML models and release the resources
+    speak = None
+
+
+app = FastAPI(lifespan=lifespan)
+
+
 def _load_model():
     global speak
     global is_processing
     speak = None
     is_processing = False
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     print("Cleared CUDA cache.")
     speak = get_synth_speech("Vĩnh (nam miền Nam)", "cuda")
     print("Model loaded once!")
 
 
-@app.on_event("startup")
-def startup():
-    _load_model()
+@app.get("/test")
+def t():
+    print("test")
+    return "test"
 
 
-@app.get("/reload_model")
-def reload_model():
-    _load_model()
+# @app.get("/reload_model")
+# def reload_model():
+#     _load_model()
 
 
 @app.get("/tts")
