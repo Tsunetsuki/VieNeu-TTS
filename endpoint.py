@@ -17,7 +17,6 @@ import torch
 
 
 # deload if model has not been used for 10 minutes
-_INACTIVITY_TIME_UNTIL_MODEL_DELOADS_IN_SEC = 600
 
 
 def arr2stream(arr: ArrayLike) -> StreamingResponse:
@@ -27,10 +26,8 @@ def arr2stream(arr: ArrayLike) -> StreamingResponse:
     return StreamingResponse(buffer, media_type="application/octet-stream")
 
 
-# torch.cuda.empty_cache()
-# speak = get_synth_speech("Nam 1 (id_0001)", "cuda")
-
-is_processing: bool
+_INACTIVITY_TIME_UNTIL_MODEL_DELOADS_IN_SEC = 600
+is_busy: bool = False
 deload_model_task: asyncio.Task | None = None
 
 
@@ -46,20 +43,22 @@ async def _set_deload_model_timer():
     _deload_model()
 
 
+# FastAPI functions -------------------------------------------------
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global speak
-    global is_processing
-    global deload_model_task
-    _load_model()
+    # global speak
+    # global deload_model_task
+    # _load_model()
 
-    if deload_model_task is not None:
-        deload_model_task.cancel()
-    deload_model_task = asyncio.create_task(_set_deload_model_timer())
+    # if deload_model_task is not None:
+    #     deload_model_task.cancel()
+    # deload_model_task = asyncio.create_task(_set_deload_model_timer())
 
     yield
     # Clean up the ML models and release the resources
-    _deload_model()
+    # _deload_model()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -67,12 +66,11 @@ app = FastAPI(lifespan=lifespan)
 
 def _load_model():
     global speak
-    global is_processing
     global deload_model_task
-    is_processing = False
 
     _deload_model()
     speak = get_synth_speech("Vĩnh (nam miền Nam)", "cuda")
+
     print("Model loaded!")
 
 
@@ -82,32 +80,31 @@ def t():
     return "test"
 
 
-# @app.get("/reload_model")
-# def reload_model():
-#     _load_model()
-
-
 @app.get("/tts")
 def tts(text: str):
-    global is_processing
+    global is_busy
     global deload_model_task
     global speak
+
+    if is_busy:
+        print(f"Busy -> denying inference for '{text}'.")
+        raise HTTPException(503)
+
+    is_busy = True
+
+    if deload_model_task is not None:
+        deload_model_task.cancel()
 
     if speak is None:
         _load_model()
 
-    if deload_model_task is not None:
-        deload_model_task.cancel()
-    deload_model_task = asyncio.create_task(_set_deload_model_timer())
-
-    if is_processing or speak is None:
-        print(f"Busy -> denying inference for '{text}'.")
-        raise HTTPException(503)
+    if speak is None:
+        raise Exception("Speak is still none")
 
     print(f"Starting inference for '{text}'...")
-    is_processing = True
     arr = speak(text)
-    is_processing = False
+    is_busy = False
+    deload_model_task = asyncio.create_task(_set_deload_model_timer())
 
     print(f"Finished inference for '{text}'.")
     return arr2stream(arr)
