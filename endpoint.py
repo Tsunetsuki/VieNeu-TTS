@@ -15,8 +15,7 @@ from clean_speak_function import get_synth_speech
 import asyncio
 import torch
 
-
-# deload if model has not been used for 10 minutes
+# os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
 
 
 def arr2stream(arr: ArrayLike) -> StreamingResponse:
@@ -26,9 +25,13 @@ def arr2stream(arr: ArrayLike) -> StreamingResponse:
     return StreamingResponse(buffer, media_type="application/octet-stream")
 
 
+# deload if model has not been used for 10 minutes
 _INACTIVITY_TIME_UNTIL_MODEL_DELOADS_IN_SEC = 600
 is_busy: bool = False
 deload_model_task: asyncio.Task | None = None
+speak = None
+
+main_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _deload_model():
@@ -48,6 +51,7 @@ async def _set_deload_model_timer():
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global main_loop
     # global speak
     # global deload_model_task
     # _load_model()
@@ -55,6 +59,7 @@ async def lifespan(_: FastAPI):
     # if deload_model_task is not None:
     #     deload_model_task.cancel()
     # deload_model_task = asyncio.create_task(_set_deload_model_timer())
+    main_loop = asyncio.get_running_loop()
 
     yield
     # Clean up the ML models and release the resources
@@ -104,7 +109,9 @@ def tts(text: str):
     print(f"Starting inference for '{text}'...")
     arr = speak(text)
     is_busy = False
-    deload_model_task = asyncio.create_task(_set_deload_model_timer())
+    # deload_model_task = asyncio.create_task(_set_deload_model_timer())
+    if main_loop is not None:
+        deload_model_task = main_loop.create_task(_set_deload_model_timer())
 
     print(f"Finished inference for '{text}'.")
     return arr2stream(arr)
